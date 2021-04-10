@@ -20,6 +20,19 @@ export interface Credentials {
 }
 
 /**
+ * Either return the hash from the 
+ */
+async function getPayloadHash(request: Request): Promise<{ body: BodyInit | null, payloadHash: string }> {
+  const payloadHash = request.headers.get("x-amz-content-sha256");
+  if (payloadHash) {
+    return { body: request.body, payloadHash: payloadHash };
+  }
+
+  const body = new Uint8Array(request.body ? await request.arrayBuffer() : []);
+  return { body, payloadHash: sha256Hex(body) };
+}
+
+/**
  * This class can be used to create AWS Signature V4
  * for low-level AWS REST APIs. You can either provide
  * credentials for this API using the options in the
@@ -93,10 +106,8 @@ export class AWSSignerV4 implements Signer {
       signedHeaders += `${key.toLowerCase()};`;
     }
     signedHeaders = signedHeaders.substring(0, signedHeaders.length - 1);
-    const body = request.body
-      ? new Uint8Array(await request.arrayBuffer())
-      : new Uint8Array();
-    const payloadHash = sha256Hex(body);
+
+    const { body, payloadHash } = await getPayloadHash(request);
 
     const { awsAccessKeyId, awsSecretKey } = this.credentials;
 
